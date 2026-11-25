@@ -181,19 +181,8 @@ fn main() -> Result<()> {
             strict,
             execute,
             console,
-            render_scale,
             title_args: _,
         } => {
-            if let Some(scale) = render_scale {
-                anyhow::ensure!(
-                    scale.is_finite() && (0.25..=1.0).contains(&scale),
-                    "--render-scale must be between 0.25 and 1.0"
-                );
-                // SAFETY: this process is single-purpose and the value is set
-                // before the title/runtime starts; no other thread observes
-                // environment mutation at this point.
-                unsafe { std::env::set_var("VICTORY_RENDER_SCALE", scale.to_string()) };
-            }
             run::run(&exe, unimplemented, strict, execute, console)
         },
         Command::Config => show_config(),
