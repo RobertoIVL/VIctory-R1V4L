@@ -1258,7 +1258,6 @@ fn host_texture(
     if d.flags & DEPTH != 0 {
         d.flags &= !UNORDERED;
     }
-    const RENDER_TARGET: u32 = 1;
     d.format = if d.flags & (RENDER_TARGET | UNORDERED) != 0 {
         target_format(d.format)
     } else {
