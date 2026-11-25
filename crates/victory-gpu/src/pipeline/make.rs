@@ -148,6 +148,13 @@ fn start(p: &Arc<Pending>) {
     }
 }
 
+/// Builds a compute pipeline synchronously for the offline warm pass.
+pub(crate) fn warm(shaders: Vec<Arc<Shader>>) -> Option<bool> {
+    let p = Pending::new(shaders, None);
+    if p.left_out.is_some() { return None; }
+    Some(HostPipeline::new(&p.shaders, None).is_some())
+}
+
 /// At the title's creation of a pipeline: starts it at once if an earlier
 /// run drew with it (during loading, so the world's first frames find it).
 pub(crate) fn early(p: &Arc<Pending>) {
