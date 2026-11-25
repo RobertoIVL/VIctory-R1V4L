@@ -242,19 +242,9 @@ extern "system" fn modes(
         return MORE_DATA;
     }
     *count = 1;
-    let scale = std::env::var("VICTORY_RENDER_SCALE")
-        .ok()
-        .and_then(|v| v.parse::<f64>().ok())
-        .filter(|v| v.is_finite() && *v >= 0.25 && *v <= 1.0)
-        .unwrap_or(1.0);
-    let width = ((3840.0 * scale).round() as u32).max(640);
-    let height = ((2160.0 * scale).round() as u32).max(360);
-    if scale != 1.0 {
-        tracing::info!(scale, width, height, "advertising scaled render mode");
-    }
     let mode = Mode {
-        width,
-        height,
+        width: 3840,
+        height: 2160,
         refresh: [60, 1],
         format: 0,
         scanlines: 1, // progressive
