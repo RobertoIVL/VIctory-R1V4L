@@ -1190,19 +1190,6 @@ pub(crate) fn skipped_mips(this: This) -> u32 {
     resource(this).host.as_ref().map_or(0, |h| h.skip)
 }
 
-/// Render scale shared by host render-target allocation and raster state.
-#[cfg(windows)]
-pub(crate) fn render_scale() -> f64 {
-    static SCALE: std::sync::OnceLock<f64> = std::sync::OnceLock::new();
-    *SCALE.get_or_init(|| {
-        std::env::var("VICTORY_RENDER_SCALE")
-            .ok()
-            .and_then(|value| value.parse::<f64>().ok())
-            .filter(|value| value.is_finite() && (0.25..=1.0).contains(value))
-            .unwrap_or(1.0)
-    })
-}
-
 /// A host texture like the title's: same description, in GPU memory,
 /// without the console's layout and flags.
 #[cfg(windows)]
@@ -1230,25 +1217,6 @@ fn host_texture(
     d.height >>= skip;
     d.mip_levels -= skip as u16;
     d.flags &= PC_FLAGS;
-
-    // Scale only color/depth render targets. Guest allocations, layouts,
-    // sampled assets and general-purpose UAV textures remain unchanged.
-    const RENDER_TARGET: u32 = 1;
-    const DEPTH_TARGET: u32 = 2;
-    let scale = render_scale();
-    if scale < 1.0 && d.flags & (RENDER_TARGET | DEPTH_TARGET) != 0 {
-        let before = (d.width, d.height);
-        d.width = ((d.width as f64 * scale).round() as u64).max(1);
-        d.height = ((d.height as f64 * scale).round() as u32).max(1);
-        tracing::debug!(
-            original_width = before.0,
-            original_height = before.1,
-            width = d.width,
-            height = d.height,
-            scale,
-            "scaled host render target"
-        );
-    }
     // PC refuses depth targets that are also unordered-access (the console
     // allows both; Grand Theft Auto VI's shadow maps ask for it).
     // shortcut: the host copy loses UAV use; give it a second view-only
@@ -1258,6 +1226,7 @@ fn host_texture(
     if d.flags & DEPTH != 0 {
         d.flags &= !UNORDERED;
     }
+    const RENDER_TARGET: u32 = 1;
     d.format = if d.flags & (RENDER_TARGET | UNORDERED) != 0 {
         target_format(d.format)
     } else {
