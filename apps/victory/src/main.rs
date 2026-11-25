@@ -116,10 +116,6 @@ enum Command {
         /// The console model the title sees (device type, memory).
         #[arg(long, value_enum, default_value_t = Console::SeriesX)]
         console: Console,
-        /// Render-scale override for the title's advertised display mode.
-        /// 1.0 is native; 0.75 is 75% linear resolution.
-        #[arg(long, value_name = "SCALE")]
-        render_scale: Option<f32>,
         /// Arguments for the title, after `--` (it reads the whole command
         /// line; a title that relaunches itself passes some).
         #[arg(last = true)]
