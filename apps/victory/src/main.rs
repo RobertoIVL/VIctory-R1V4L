@@ -91,6 +91,16 @@ enum Command {
         #[arg(long)]
         jobs: Option<usize>,
     },
+    /// Pre-translate shader containers and optionally build compute pipelines into the persistent caches.
+    Warm {
+        paths: Vec<PathBuf>,
+        /// Worker threads (default: every logical core).
+        #[arg(long)]
+        jobs: Option<usize>,
+        /// Do not build host compute pipelines; only populate the shader cache.
+        #[arg(long)]
+        no_pipelines: bool,
+    },
     /// Prepare, map and bind a title executable; with --execute, run it.
     Run {
         exe: PathBuf,
@@ -160,6 +170,7 @@ fn main() -> Result<()> {
             jobs,
             host_lanes,
         } => translate::run(paths, validate, pipelines, list, jobs, host_lanes),
+        Command::Warm { paths, jobs, no_pipelines } => translate::warm(paths, jobs, !no_pipelines),
         Command::Run {
             exe,
             unimplemented,
