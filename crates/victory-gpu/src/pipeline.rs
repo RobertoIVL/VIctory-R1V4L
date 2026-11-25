@@ -196,6 +196,25 @@ fn shader(stage: &'static str, bytes: &[u8]) -> Arc<Shader> {
         .clone()
 }
 
+/// Translates one title shader into the persistent shader cache and, for
+/// compute shaders, optionally compiles its host pipeline into the pipeline cache.
+/// This does not insert the temporary shader into the runtime shader table.
+#[cfg(windows)]
+pub fn warm(stage: &'static str, container: &[u8], compute: bool) -> (bool, Option<bool>) {
+    let full = blake3::hash(container);
+    let shader = Arc::new(Shader {
+        stage,
+        hash: full.to_hex()[..16].to_owned(),
+        container: container.to_vec(),
+        hair: hair_strands(container),
+        resolves_light: container.windows(crate::ambient::PROGRAM.len()).any(|w| w == crate::ambient::PROGRAM),
+        translated: OnceLock::new(),
+    });
+    let translated = shader.translated().is_some();
+    let made = (translated && compute).then(|| make::warm(vec![shader])).flatten();
+    (translated, made)
+}
+
 /// A translated shader and the console resources its code reads.
 #[cfg(windows)]
 pub(crate) struct Translated {
@@ -375,6 +394,12 @@ pub(crate) fn host_pipeline<'a>(this: This) -> Option<&'a host::HostPipeline> {
         return None;
     }
     make::ready(&pipeline(this).host)
+}
+
+/// Saves the host pipeline library immediately, if it has changed.
+#[cfg(windows)]
+pub fn save_pipeline_cache() {
+    library::save(true);
 }
 
 /// Host pipelines queued and not made yet.
