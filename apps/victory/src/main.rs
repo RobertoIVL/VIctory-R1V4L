@@ -91,6 +91,16 @@ enum Command {
         #[arg(long)]
         jobs: Option<usize>,
     },
+    /// Pre-translate shader containers and optionally build compute pipelines into the persistent caches.
+    Warm {
+        paths: Vec<PathBuf>,
+        /// Worker threads (default: every logical core).
+        #[arg(long)]
+        jobs: Option<usize>,
+        /// Do not build host compute pipelines; only populate the shader cache.
+        #[arg(long)]
+        no_pipelines: bool,
+    },
     /// Prepare, map and bind a title executable; with --execute, run it.
     Run {
         exe: PathBuf,
@@ -106,6 +116,9 @@ enum Command {
         /// The console model the title sees (device type, memory).
         #[arg(long, value_enum, default_value_t = Console::SeriesX)]
         console: Console,
+        /// Render scale: 1.0 is native; 0.5 renders at half width and height.
+        #[arg(long, value_name = "SCALE")]
+        render_scale: Option<f32>,
         /// Arguments for the title, after `--` (it reads the whole command
         /// line; a title that relaunches itself passes some).
         #[arg(last = true)]
@@ -160,14 +173,26 @@ fn main() -> Result<()> {
             jobs,
             host_lanes,
         } => translate::run(paths, validate, pipelines, list, jobs, host_lanes),
+        Command::Warm { paths, jobs, no_pipelines } => translate::warm(paths, jobs, !no_pipelines),
         Command::Run {
             exe,
             unimplemented,
             strict,
             execute,
             console,
+            render_scale,
             title_args: _,
-        } => run::run(&exe, unimplemented, strict, execute, console),
+        } => {
+            if let Some(scale) = render_scale {
+                anyhow::ensure!(
+                    scale.is_finite() && (0.25..=1.0).contains(&scale),
+                    "--render-scale must be between 0.25 and 1.0"
+                );
+                // SAFETY: set before the runtime starts and before worker threads exist.
+                unsafe { std::env::set_var("VICTORY_RENDER_SCALE", scale.to_string()) };
+            }
+            run::run(&exe, unimplemented, strict, execute, console)
+        },
         Command::Config => show_config(),
     }
 }
