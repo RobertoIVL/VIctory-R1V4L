@@ -116,6 +116,10 @@ enum Command {
         /// The console model the title sees (device type, memory).
         #[arg(long, value_enum, default_value_t = Console::SeriesX)]
         console: Console,
+        /// Render-scale override for the title's advertised display mode.
+        /// 1.0 is native; 0.75 is 75% linear resolution.
+        #[arg(long, value_name = "SCALE")]
+        render_scale: Option<f32>,
         /// Arguments for the title, after `--` (it reads the whole command
         /// line; a title that relaunches itself passes some).
         #[arg(last = true)]
@@ -177,8 +181,21 @@ fn main() -> Result<()> {
             strict,
             execute,
             console,
+            render_scale,
             title_args: _,
-        } => run::run(&exe, unimplemented, strict, execute, console),
+        } => {
+            if let Some(scale) = render_scale {
+                anyhow::ensure!(
+                    scale.is_finite() && (0.25..=1.0).contains(&scale),
+                    "--render-scale must be between 0.25 and 1.0"
+                );
+                // SAFETY: this process is single-purpose and the value is set
+                // before the title/runtime starts; no other thread observes
+                // environment mutation at this point.
+                unsafe { std::env::set_var("VICTORY_RENDER_SCALE", scale.to_string()) };
+            }
+            run::run(&exe, unimplemented, strict, execute, console)
+        },
         Command::Config => show_config(),
     }
 }
