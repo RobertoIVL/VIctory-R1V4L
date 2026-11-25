@@ -721,12 +721,6 @@ pub fn use_pipeline_cache(dir: std::path::PathBuf) {
     library::use_pipeline_cache(dir);
 }
 
-/// Saves the pipeline cache now if anything was added (at the end of a run).
-#[cfg(windows)]
-pub fn save_pipeline_cache() {
-    library::save(true);
-}
-
 #[cfg(test)]
 mod tests {
     #[cfg(all(windows, feature = "diagnostics"))]
