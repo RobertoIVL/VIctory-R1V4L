@@ -151,7 +151,9 @@ fn start(p: &Arc<Pending>) {
 /// Builds a compute pipeline synchronously for the offline warm pass.
 pub(crate) fn warm(shaders: Vec<Arc<Shader>>) -> Option<bool> {
     let p = Pending::new(shaders, None);
-    if p.left_out.is_some() { return None; }
+    if p.shaders.is_empty() { return Some(false); }
+    let translated = p.shaders.iter().all(|s| s.translated().is_some());
+    if !translated { return Some(false); }
     Some(HostPipeline::new(&p.shaders, None).is_some())
 }
 
