@@ -2014,45 +2014,13 @@ const QUAD_STRIP: u32 = 20;
 
 /// Fixed-function state, straight onto the host list.
 fn viewports(list: &HostList, viewports: &[D3D12_VIEWPORT]) {
-    let scale = crate::resource::render_scale() as f32;
-    if scale == 1.0 {
-        // SAFETY: an open list.
-        unsafe { list.list.RSSetViewports(viewports) };
-        return;
-    }
-    let scaled: Vec<_> = viewports
-        .iter()
-        .map(|viewport| D3D12_VIEWPORT {
-            TopLeftX: viewport.TopLeftX * scale,
-            TopLeftY: viewport.TopLeftY * scale,
-            Width: viewport.Width * scale,
-            Height: viewport.Height * scale,
-            MinDepth: viewport.MinDepth,
-            MaxDepth: viewport.MaxDepth,
-        })
-        .collect();
-    // SAFETY: an open list; scaled remains alive for the call.
-    unsafe { list.list.RSSetViewports(&scaled) };
+    // SAFETY: an open list.
+    unsafe { list.list.RSSetViewports(viewports) };
 }
 
 fn scissors(list: &HostList, rects: &[RECT]) {
-    let scale = crate::resource::render_scale();
-    if scale == 1.0 {
-        // SAFETY: an open list.
-        unsafe { list.list.RSSetScissorRects(rects) };
-        return;
-    }
-    let scaled: Vec<_> = rects
-        .iter()
-        .map(|rect| RECT {
-            left: (f64::from(rect.left) * scale).round() as i32,
-            top: (f64::from(rect.top) * scale).round() as i32,
-            right: (f64::from(rect.right) * scale).round() as i32,
-            bottom: (f64::from(rect.bottom) * scale).round() as i32,
-        })
-        .collect();
-    // SAFETY: an open list; scaled remains alive for the call.
-    unsafe { list.list.RSSetScissorRects(&scaled) };
+    // SAFETY: an open list.
+    unsafe { list.list.RSSetScissorRects(rects) };
 }
 
 fn blend_factor(list: &HostList, factor: Option<&[f32; 4]>) {
