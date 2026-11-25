@@ -659,6 +659,19 @@ extern "system" fn copy_resource(this: This, dst: This, src: This) {
             if crate::resource::skipped_mips(dst) + crate::resource::skipped_mips(src) > 0 {
                 return;
             }
+            // CopyResource requires identical host dimensions. Render-scale
+            // can make only one side smaller; never submit an invalid copy.
+            let (to_desc, from_desc) = unsafe { (to.GetDesc(), from.GetDesc()) };
+            if (to_desc.Width, to_desc.Height, to_desc.DepthOrArraySize, to_desc.MipLevels, to_desc.SampleDesc.Count)
+                != (from_desc.Width, from_desc.Height, from_desc.DepthOrArraySize, from_desc.MipLevels, from_desc.SampleDesc.Count)
+            {
+                tracing::warn!(
+                    destination = ?(to_desc.Width, to_desc.Height),
+                    source = ?(from_desc.Width, from_desc.Height),
+                    "skipping texture CopyResource with incompatible host dimensions"
+                );
+                return;
+            }
             if crate::texture::title_written(from) {
                 crate::texture::upload(&list, src, from);
             }
@@ -957,6 +970,30 @@ extern "system" fn copy_texture_region(
         }
         ensure_state(&list, dst.resource, COPY_DEST);
         crate::texture::host_written(dst.resource);
+        // Texture copies between equally scaled render targets must use
+        // coordinates in the host's reduced raster space, not guest pixels.
+        let dst_scale = crate::resource::render_scale_for(dst.resource);
+        let src_scale = crate::resource::render_scale_for(src.resource);
+        if (dst_scale - src_scale).abs() > f64::EPSILON {
+            tracing::warn!(dst_scale, src_scale, "skipping texture-region copy between differently scaled resources");
+            return;
+        }
+        let (copy_x, copy_y, copy_z) = (
+            (f64::from(x) * dst_scale).round() as u32,
+            (f64::from(y) * dst_scale).round() as u32,
+            (f64::from(z) * dst_scale).round() as u32,
+        );
+        let scaled_box = unsafe { source_box.as_ref() }.map(|b| {
+            windows::Win32::Graphics::Direct3D12::D3D12_BOX {
+                left: (f64::from(b[0]) * src_scale).floor() as u32,
+                top: (f64::from(b[1]) * src_scale).floor() as u32,
+                front: b[2],
+                right: (f64::from(b[3]) * src_scale).ceil() as u32,
+                bottom: (f64::from(b[4]) * src_scale).ceil() as u32,
+                back: b[5],
+            }
+        });
+        let copy_box = scaled_box.as_ref().map(std::ptr::from_ref);
         let mut to_location = dst;
         to_location.resource = to.as_raw().cast_const().cast();
         #[cfg(feature = "diagnostics")]
@@ -986,11 +1023,11 @@ extern "system" fn copy_texture_region(
         unsafe {
             list.list.CopyTextureRegion(
                 (&raw const to_location).cast(),
-                x,
-                y,
-                z,
+                copy_x,
+                copy_y,
+                copy_z,
                 (&raw const from).cast(),
-                host_box,
+                copy_box,
             )
         };
     }
@@ -1112,9 +1149,18 @@ extern "system" fn clear_rtv(
         let Some(color) = (unsafe { color.as_ref() }) else {
             return;
         };
+        let scale = crate::resource::render_scale_for(record.resource);
         let rects = (count > 0 && !rects.is_null()).then(|| {
             // SAFETY: the title passes `count` rectangles, laid out as the host's.
             unsafe { std::slice::from_raw_parts(rects.cast(), count as usize) }
+                .iter()
+                .map(|r| windows::Win32::Foundation::RECT {
+                    left: (f64::from(r.left) * scale).round() as i32,
+                    top: (f64::from(r.top) * scale).round() as i32,
+                    right: (f64::from(r.right) * scale).round() as i32,
+                    bottom: (f64::from(r.bottom) * scale).round() as i32,
+                })
+                .collect::<Vec<_>>()
         });
         const RENDER_TARGET: u32 = 0x4;
         let rtv = host.rtv(texture, record.desc().as_ref());
@@ -1128,7 +1174,7 @@ extern "system" fn clear_rtv(
                     State(RENDER_TARGET as i32),
                 )]);
             }
-            list.list.ClearRenderTargetView(rtv, color, rects);
+            list.list.ClearRenderTargetView(rtv, color, rects.as_deref());
         }
     }
     #[cfg(not(windows))]
@@ -1163,9 +1209,18 @@ extern "system" fn clear_dsv(
         ) else {
             return;
         };
+        let scale = crate::resource::render_scale_for(record.resource);
         let rects = (count > 0 && !rects.is_null()).then(|| {
             // SAFETY: the title passes `count` rectangles, laid out as the host's.
             unsafe { std::slice::from_raw_parts(rects.cast(), count as usize) }
+                .iter()
+                .map(|r| windows::Win32::Foundation::RECT {
+                    left: (f64::from(r.left) * scale).round() as i32,
+                    top: (f64::from(r.top) * scale).round() as i32,
+                    right: (f64::from(r.right) * scale).round() as i32,
+                    bottom: (f64::from(r.bottom) * scale).round() as i32,
+                })
+                .collect::<Vec<_>>()
         });
         const DEPTH_WRITE: u32 = 0x10;
         ensure_state(&list, record.resource, DEPTH_WRITE);
@@ -1173,7 +1228,7 @@ extern "system" fn clear_dsv(
         // SAFETY: an open list, a fresh view of a live texture.
         unsafe {
             list.list
-                .ClearDepthStencilView(dsv, D3D12_CLEAR_FLAGS(flags as i32 & 3), depth, stencil, rects)
+                .ClearDepthStencilView(dsv, D3D12_CLEAR_FLAGS(flags as i32 & 3), depth, stencil, rects.as_deref())
         };
     }
     #[cfg(not(windows))]
