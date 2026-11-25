@@ -1244,10 +1244,10 @@ fn host_texture(
     d.flags &= PC_FLAGS;
 
     // Preserve guest memory/layout; only the host raster targets are smaller.
-    const RENDER_TARGET: u32 = 1;
-    const DEPTH_TARGET: u32 = 2;
+    const SCALED_RENDER_TARGET: u32 = 1;
+    const SCALED_DEPTH_TARGET: u32 = 2;
     let scale = render_scale();
-    if scale < 1.0 && d.flags & (RENDER_TARGET | DEPTH_TARGET) != 0 {
+    if scale < 1.0 && d.flags & (SCALED_RENDER_TARGET | SCALED_DEPTH_TARGET) != 0 {
         let before = (d.width, d.height);
         d.width = ((d.width as f64 * scale).round() as u64).max(1);
         d.height = ((f64::from(d.height) * scale).round() as u32).max(1);
