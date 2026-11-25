@@ -662,8 +662,8 @@ extern "system" fn copy_resource(this: This, dst: This, src: This) {
             // CopyResource requires identical host dimensions. Render-scale
             // can make only one side smaller; never submit an invalid copy.
             let (to_desc, from_desc) = unsafe { (to.GetDesc(), from.GetDesc()) };
-            if (to_desc.Width, to_desc.Height, to_desc.DepthOrArraySize, to_desc.MipLevels, to_desc.SampleDesc.Count)
-                != (from_desc.Width, from_desc.Height, from_desc.DepthOrArraySize, from_desc.MipLevels, from_desc.SampleDesc.Count)
+            if (to_desc.Dimension, to_desc.Width, to_desc.Height, to_desc.DepthOrArraySize, to_desc.MipLevels, to_desc.Format, to_desc.SampleDesc.Count, to_desc.SampleDesc.Quality)
+                != (from_desc.Dimension, from_desc.Width, from_desc.Height, from_desc.DepthOrArraySize, from_desc.MipLevels, from_desc.Format, from_desc.SampleDesc.Count, from_desc.SampleDesc.Quality)
             {
                 tracing::warn!(
                     destination = ?(to_desc.Width, to_desc.Height),
